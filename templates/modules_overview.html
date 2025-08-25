@@ -8,6 +8,23 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
   <style>
+    .page-nav {
+      padding: 12px 24px;
+      background: rgba(17, 18, 28, 0.4);
+      border-bottom: 1px solid #273041;
+      margin-bottom: 24px;
+      display: flex;
+      justify-content: space-between;
+    }
+    .page-nav a {
+      color: #cbd5ff;
+      text-decoration: none;
+      font-weight: 600;
+      font-size: 0.9rem;
+    }
+    .page-nav a:hover {
+      text-decoration: underline;
+    }
     .mcard-link {
       text-decoration: none;
       color: inherit;
@@ -17,6 +34,9 @@
 </head>
 <body>
   <div class="scene">
+    <header class="page-nav">
+      <a href="{{ url_for('home') }}">&larr; Home</a>
+    </header>
     <header class="modules-hero">
       <h1 class="modules-title">Explore <span>All Modules</span></h1>
       <p class="modules-sub">

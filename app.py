@@ -15,6 +15,18 @@ from sklearn.pipeline import make_pipeline
 from sklearn.metrics.pairwise import cosine_similarity
 import pandas as pd
 from gensim.models import Word2Vec
+import PyPDF2
+import re
+import warnings
+warnings.filterwarnings('ignore')
+
+# Advanced AI model imports with fallback handling
+try:
+    from transformers import pipeline
+    TRANSFORMERS_AVAILABLE = True
+except ImportError:
+    TRANSFORMERS_AVAILABLE = False
+    print("Transformers not available - using fallback implementations")
 
 # Load models once at startup
 try:
@@ -37,6 +49,33 @@ try:
     nltk.data.find('taggers/tagsets')
 except LookupError:
     nltk.download('tagsets')
+
+# Initialize advanced AI models with fallback handling
+summarizer = None
+question_generator = None
+question_answerer = None
+
+if TRANSFORMERS_AVAILABLE:
+    try:
+        print("Loading advanced AI models...")
+        summarizer = pipeline("summarization", model="facebook/bart-large-cnn")
+        print("✓ Summarization model loaded")
+    except Exception as e:
+        print(f"Failed to load summarization model: {e}")
+    
+    try:
+        question_generator = pipeline("text2text-generation", model="valhalla/t5-small-qa-qg-hl")
+        print("✓ Question generation model loaded")
+    except Exception as e:
+        print(f"Failed to load question generation model: {e}")
+    
+    try:
+        question_answerer = pipeline("question-answering", model="distilbert-base-uncased-distilled-squad")
+        print("✓ Question answering model loaded")
+    except Exception as e:
+        print(f"Failed to load question answering model: {e}")
+else:
+    print("Using fallback implementations for AI models")
 
 
 app = Flask(__name__)
@@ -87,6 +126,100 @@ POS_TAG_DESCRIPTIONS = {
     "``": "Opening quotation mark",
     "''": "Closing quotation mark",
 }
+
+# ---------- PDF Analysis Helper Functions ----------
+
+def extract_text_from_pdf(pdf_content):
+    """Extract text from PDF content"""
+    try:
+        from io import BytesIO
+        pdf_file = BytesIO(pdf_content)
+        pdf_reader = PyPDF2.PdfReader(pdf_file)
+        
+        text = ""
+        for page in pdf_reader.pages:
+            text += page.extract_text() + "\n"
+        
+        return text.strip()
+    except Exception as e:
+        raise ValueError(f"Failed to extract text from PDF: {str(e)}")
+
+def simple_summarizer(text, max_sentences=3):
+    """Simple extractive summarization using sentence scoring"""
+    sentences = re.split(r'[.!?]+', text)
+    sentences = [s.strip() for s in sentences if len(s.strip()) > 10]
+    
+    if len(sentences) <= max_sentences:
+        return ' '.join(sentences)
+    
+    # Score sentences by word frequency
+    words = re.findall(r'\b\w+\b', text.lower())
+    word_freq = Counter(words)
+    
+    sentence_scores = []
+    for sentence in sentences:
+        sentence_words = re.findall(r'\b\w+\b', sentence.lower())
+        score = sum(word_freq[word] for word in sentence_words)
+        sentence_scores.append((score, sentence))
+    
+    # Get top sentences
+    top_sentences = sorted(sentence_scores, reverse=True)[:max_sentences]
+    top_sentences.sort(key=lambda x: sentences.index(x[1]))  # Maintain order
+    
+    return '. '.join([s[1] for s in top_sentences]) + '.'
+
+def simple_question_generator(text):
+    """Simple question generation using pattern matching"""
+    sentences = re.split(r'[.!?]+', text)
+    questions = []
+    
+    for sentence in sentences:
+        sentence = sentence.strip()
+        if len(sentence) < 10:
+            continue
+            
+        # Generate different types of questions
+        if 'is a' in sentence.lower() or 'is an' in sentence.lower():
+            # What is questions
+            match = re.search(r'(\w+(?:\s+\w+)*)\s+is\s+(?:a|an)\s+(.+)', sentence, re.IGNORECASE)
+            if match:
+                questions.append(f"What is {match.group(1)}?")
+        
+        if 'include' in sentence.lower():
+            # What includes questions
+            match = re.search(r'(.+?)\s+include[s]?\s+(.+)', sentence, re.IGNORECASE)
+            if match:
+                questions.append(f"What are some examples of {match.group(1).strip()}?")
+        
+        if 'used' in sentence.lower():
+            # Where/how used questions
+            match = re.search(r'(.+?)\s+(?:are|is)\s+used\s+(?:in|for)\s+(.+)', sentence, re.IGNORECASE)
+            if match:
+                questions.append(f"Where are {match.group(1).strip()} used?")
+    
+    return questions[:5]  # Return top 5 questions
+
+def simple_question_answerer(question, context):
+    """Simple question answering using keyword matching"""
+    question_words = re.findall(r'\b\w+\b', question.lower())
+    sentences = re.split(r'[.!?]+', context)
+    
+    best_score = 0
+    best_sentence = ""
+    
+    for sentence in sentences:
+        sentence = sentence.strip()
+        if len(sentence) < 10:
+            continue
+            
+        sentence_words = re.findall(r'\b\w+\b', sentence.lower())
+        score = sum(1 for word in question_words if word in sentence_words)
+        
+        if score > best_score:
+            best_score = score
+            best_sentence = sentence
+    
+    return best_sentence if best_sentence else "No answer found."
 
 
 # ---------- Pages ----------
@@ -625,6 +758,160 @@ def api_dense_vectors_search():
         return jsonify({
             "results": [{"doc": doc, "score": float(score)} for doc, score in results]
         })
+    except Exception as e:
+        return jsonify({"error": str(e)}), 400
+
+# ---------- Advanced PDF Analysis Endpoints ----------
+
+@app.route("/api/analyze-pdf-advanced", methods=["POST"])
+def api_analyze_pdf_advanced():
+    """
+    Advanced PDF analysis with abstractive summarization and intelligent question generation
+    Uses transformers-based AI models with fallback to rule-based implementations
+    """
+    try:
+        data = request.get_json()
+        
+        # Handle both base64 encoded PDF content and plain text
+        if 'pdf_content' in data:
+            # Decode base64 PDF content
+            import base64
+            pdf_bytes = base64.b64decode(data['pdf_content'])
+            text = extract_text_from_pdf(pdf_bytes)
+        elif 'text' in data:
+            # Use provided text directly
+            text = data.get('text', '')
+        else:
+            return jsonify({"error": "Either 'pdf_content' (base64) or 'text' parameter is required"}), 400
+        
+        if not text.strip():
+            return jsonify({"error": "No text could be extracted from the document"}), 400
+        
+        # Advanced summarization
+        summary = ""
+        summary_method = "fallback"
+        
+        if summarizer:
+            try:
+                # Use advanced transformers-based summarization
+                max_length = min(150, len(text.split()) // 2)
+                min_length = min(50, max_length // 3)
+                summary_result = summarizer(text, max_length=max_length, min_length=min_length, do_sample=False)
+                summary = summary_result[0]['summary_text']
+                summary_method = "transformers"
+            except Exception as e:
+                print(f"Advanced summarization failed: {e}")
+                summary = simple_summarizer(text, max_sentences=3)
+        else:
+            summary = simple_summarizer(text, max_sentences=3)
+        
+        # Intelligent question generation
+        questions = []
+        question_method = "fallback"
+        
+        if question_generator:
+            try:
+                # Use advanced transformers-based question generation
+                input_text = f"generate questions: {text[:1000]}"  # Limit context for performance
+                question_results = question_generator(input_text, max_length=100, num_return_sequences=3, do_sample=True)
+                questions = [q['generated_text'].strip() for q in question_results]
+                question_method = "transformers"
+            except Exception as e:
+                print(f"Advanced question generation failed: {e}")
+                questions = simple_question_generator(text)
+        else:
+            questions = simple_question_generator(text)
+        
+        return jsonify({
+            "summary": summary,
+            "summary_method": summary_method,
+            "questions": questions,
+            "question_method": question_method,
+            "text_length": len(text),
+            "word_count": len(text.split())
+        })
+        
+    except Exception as e:
+        return jsonify({"error": str(e)}), 400
+
+@app.route("/api/ask-document-advanced", methods=["POST"])
+def api_ask_document_advanced():
+    """
+    Advanced question-answering with transformers for document content
+    Uses context-aware models with fallback to keyword matching
+    """
+    try:
+        data = request.get_json()
+        question = data.get('question', '').strip()
+        
+        if not question:
+            return jsonify({"error": "Question parameter is required"}), 400
+        
+        # Handle both base64 encoded PDF content and plain text
+        if 'pdf_content' in data:
+            # Decode base64 PDF content
+            import base64
+            pdf_bytes = base64.b64decode(data['pdf_content'])
+            context = extract_text_from_pdf(pdf_bytes)
+        elif 'context' in data:
+            # Use provided context directly
+            context = data.get('context', '')
+        else:
+            return jsonify({"error": "Either 'pdf_content' (base64) or 'context' parameter is required"}), 400
+        
+        if not context.strip():
+            return jsonify({"error": "No context could be extracted from the document"}), 400
+        
+        # Advanced question answering
+        answer = ""
+        confidence = 0.0
+        answer_method = "fallback"
+        
+        if question_answerer:
+            try:
+                # Use advanced transformers-based question answering
+                # Limit context size for performance
+                max_context_length = 1000
+                if len(context) > max_context_length:
+                    # Take a relevant chunk around potential answer
+                    question_words = question.lower().split()
+                    context_words = context.lower().split()
+                    
+                    # Find best starting position based on question keywords
+                    best_start = 0
+                    best_score = 0
+                    
+                    for i in range(len(context_words) - max_context_length):
+                        chunk = context_words[i:i + max_context_length]
+                        score = sum(1 for word in question_words if word in chunk)
+                        if score > best_score:
+                            best_score = score
+                            best_start = i
+                    
+                    context_chunk = ' '.join(context.split()[best_start:best_start + max_context_length])
+                else:
+                    context_chunk = context
+                
+                answer_result = question_answerer(question=question, context=context_chunk)
+                answer = answer_result['answer']
+                confidence = answer_result['score']
+                answer_method = "transformers"
+                
+            except Exception as e:
+                print(f"Advanced question answering failed: {e}")
+                answer = simple_question_answerer(question, context)
+        else:
+            answer = simple_question_answerer(question, context)
+        
+        return jsonify({
+            "question": question,
+            "answer": answer,
+            "confidence": confidence,
+            "answer_method": answer_method,
+            "context_length": len(context),
+            "context_word_count": len(context.split())
+        })
+        
     except Exception as e:
         return jsonify({"error": str(e)}), 400
 

@@ -9,6 +9,12 @@ from nltk.util import ngrams
 from nltk import word_tokenize, pos_tag
 from nltk.corpus import wordnet as wn
 from nltk.stem import WordNetLemmatizer
+from sklearn.feature_extraction.text import CountVectorizer, TfidfVectorizer
+from sklearn.naive_bayes import MultinomialNB
+from sklearn.pipeline import make_pipeline
+from sklearn.metrics.pairwise import cosine_similarity
+import pandas as pd
+from gensim.models import Word2Vec
 
 # Load models once at startup
 try:
@@ -94,7 +100,7 @@ def journey():
 
 @app.route("/modules")
 def modules():
-    return render_template("modules_overview.html")
+    return render_template("modules.html")
 
 @app.route("/modules/1-nlp")
 def module_nlp():
@@ -119,6 +125,22 @@ def module_wsd():
 @app.route("/setup-python-nlp")
 def setup_python_nlp():
     return render_template("setup_python_nlp.html")
+
+@app.route("/modules/6-sparse-vector")
+def module_sparse_vector():
+    return render_template("module_sparse_vector.html")
+
+@app.route("/modules/7-dense-vector")
+def module_dense_vector():
+    return render_template("module_dense_vector.html")
+
+@app.route("/modules/8-sparse-app")
+def module_sparse_app():
+    return render_template("module_sparse_app.html")
+
+@app.route("/modules/9-dense-app")
+def module_dense_app():
+    return render_template("module_dense_app.html")
 
 
 # ---------- APIs ----------
@@ -425,6 +447,184 @@ def api_wsd_disambiguate():
             })
             
         return jsonify({"results": results})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 400
+
+# Sparse Vector API
+@app.route("/api/sparse-vectors", methods=["POST"])
+def api_sparse_vectors():
+    try:
+        data = request.get_json()
+        corpus = data.get("corpus", "").split('\n')
+        
+        # Bag-of-Words
+        count_vectorizer = CountVectorizer()
+        bow_matrix = count_vectorizer.fit_transform(corpus)
+        
+        # TF-IDF
+        tfidf_vectorizer = TfidfVectorizer()
+        tfidf_matrix = tfidf_vectorizer.fit_transform(corpus)
+        
+        # Get vocabulary
+        vocab = count_vectorizer.get_feature_names_out().tolist()
+        
+        return jsonify({
+            "vocabulary": vocab,
+            "bow": bow_matrix.toarray().tolist(),
+            "tfidf": tfidf_matrix.toarray().tolist()
+        })
+    except Exception as e:
+        return jsonify({"error": str(e)}), 400
+
+# Sparse Vector Lab API
+@app.route("/api/sparse-vectors/lab", methods=["POST"])
+def api_sparse_vectors_lab():
+    try:
+        data = request.get_json()
+        query = data.get("query", "").lower()
+        query_terms = word_tokenize(query)
+
+        # Data from the lab image
+        tf_data = {
+            'car': [27, 4, 24],
+            'auto': [3, 33, 0],
+            'insurance': [0, 33, 29],
+            'best': [14, 0, 17]
+        }
+        docs = ['Doc1', 'Doc2', 'Doc3']
+        tf = pd.DataFrame(tf_data, index=docs)
+
+        idf_data = {
+            'car': 1.65,
+            'auto': 2.08,
+            'insurance': 1.62,
+            'best': 1.5
+        }
+        idf = pd.Series(idf_data)
+
+        # Calculate TF-IDF
+        tfidf = tf.copy()
+        for term in tfidf.columns:
+            tfidf[term] = tf[term] * idf[term]
+
+        # Score documents based on the query
+        scores = {}
+        for doc in docs:
+            score = 0
+            for term in query_terms:
+                if term in tfidf.columns:
+                    score += tfidf.loc[doc, term]
+            scores[doc] = score
+        
+        return jsonify({
+            "tfidf_weights": tfidf.to_dict('index'),
+            "query_scores": scores
+        })
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 400
+
+# Dense Vector Lab API
+@app.route("/api/dense-vectors/lab", methods=["POST"])
+def api_dense_vectors_lab():
+    try:
+        data = request.get_json()
+        corpus_text = data.get("corpus", "")
+        target_word = data.get("target_word", "").lower()
+        model_type = data.get("model_type", "cbow") # cbow or skipgram
+
+        # Preprocess the corpus
+        sentences = [word_tokenize(sent.lower()) for sent in corpus_text.split('\n')]
+        
+        # Train Word2Vec model
+        sg = 1 if model_type == 'skipgram' else 0
+        model = Word2Vec(sentences, vector_size=100, window=5, min_count=1, workers=4, sg=sg)
+        
+        # Find most similar words
+        if target_word in model.wv:
+            similar_words = model.wv.most_similar(target_word)
+        else:
+            return jsonify({"error": f"Word '{target_word}' not in vocabulary."}), 400
+
+        return jsonify({
+            "similar_words": similar_words
+        })
+    except Exception as e:
+        return jsonify({"error": str(e)}), 400
+
+# Sparse Vector Application (Classification) API
+@app.route("/api/sparse-vectors/classify", methods=["POST"])
+def api_sparse_vectors_classify():
+    try:
+        data = request.get_json()
+        training_data_raw = data.get("training_data", "")
+        query = data.get("query", "")
+
+        # Parse training data
+        lines = training_data_raw.strip().split('\n')
+        labels = []
+        texts = []
+        for line in lines:
+            parts = line.split(',', 1)
+            if len(parts) == 2:
+                labels.append(parts[0].strip())
+                texts.append(parts[1].strip())
+
+        if not texts or not labels:
+            return jsonify({"error": "Invalid or empty training data."}), 400
+
+        # Create a simple classification pipeline
+        model = make_pipeline(TfidfVectorizer(), MultinomialNB())
+        
+        # Train the model
+        model.fit(texts, labels)
+        
+        # Predict the query
+        prediction = model.predict([query])[0]
+
+        return jsonify({
+            "prediction": prediction
+        })
+    except Exception as e:
+        return jsonify({"error": str(e)}), 400
+
+# Dense Vector Application (Semantic Search) API
+@app.route("/api/dense-vectors/search", methods=["POST"])
+def api_dense_vectors_search():
+    try:
+        data = request.get_json()
+        corpus_text = data.get("corpus", "")
+        query = data.get("query", "")
+
+        documents = [doc for doc in corpus_text.strip().split('\n') if doc]
+        
+        # Simple averaging of word vectors to get sentence embeddings
+        tokenized_docs = [word_tokenize(doc.lower()) for doc in documents]
+        tokenized_query = word_tokenize(query.lower())
+        
+        all_sentences = tokenized_docs + [tokenized_query]
+        
+        # Train a Word2Vec model on the provided documents + query
+        model = Word2Vec(all_sentences, vector_size=100, window=5, min_count=1, workers=4)
+        
+        def get_sentence_vector(tokens):
+            vectors = [model.wv[word] for word in tokens if word in model.wv]
+            if len(vectors) == 0:
+                return np.zeros(model.vector_size)
+            return np.mean(vectors, axis=0)
+
+        doc_vectors = np.array([get_sentence_vector(doc) for doc in tokenized_docs])
+        query_vector = get_sentence_vector(tokenized_query).reshape(1, -1)
+        
+        # Calculate cosine similarity
+        similarities = cosine_similarity(query_vector, doc_vectors)[0]
+        
+        # Rank documents
+        results = sorted(zip(documents, similarities), key=lambda item: item[1], reverse=True)
+        
+        return jsonify({
+            "results": [{"doc": doc, "score": float(score)} for doc, score in results]
+        })
     except Exception as e:
         return jsonify({"error": str(e)}), 400
 

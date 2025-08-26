@@ -81,7 +81,7 @@
     <header class="modules-hero">
       <h1 class="modules-title">PDF <span>Study Helper</span></h1>
       <p class="modules-sub">
-        Upload a study material PDF to get a summary, key terms, and AI-generated questions.
+        Upload a study material PDF to get a summary and key terms.
       </p>
     </header>
 
@@ -109,13 +109,10 @@
                 <button class="btn primary" style="margin-top:10px;" id="btn-ask">Ask</button>
                 <div id="ask-answer">Your answer will appear here.</div>
             </div>
-            <!-- Right Column for Key Terms and Questions -->
+            <!-- Right Column for Key Terms -->
             <div class="result-box">
                 <h3>Key Terms</h3>
                 <div id="key-terms-output" class="pill-row"></div>
-                <hr style="border-color: #2b3449; margin: 20px 0;">
-                <h3>Study Questions</h3>
-                <ul id="questions-output"></ul>
             </div>
         </div>
       </div>
@@ -155,8 +152,6 @@
           const keyTermsHtml = data.key_terms.map(term => `<span class="pill">${term}</span>`).join('');
           document.getElementById('key-terms-output').innerHTML = keyTermsHtml;
 
-          const questionsHtml = data.questions.map(q => `<li>${q}</li>`).join('');
-          document.getElementById('questions-output').innerHTML = questionsHtml;
           resultsContainer.style.display = 'block';
         } else {
           throw new Error(data.error);

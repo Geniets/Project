@@ -41,7 +41,7 @@ Welcome to **Learn NLP**, a web-based, interactive platform for learning Natural
 
 4.  **Run the app:**
     ```bash
-    flask run
+    python run.py
     ```
     The application will be available at `http://127.0.0.1:5000`.
 

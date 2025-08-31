@@ -6,6 +6,10 @@ import regex as reg
 import numpy as np
 import pandas as pd
 from collections import Counter
+import re
+import math
+from collections import Counter
+
 
 # NLTK / spaCy / gensim / sklearn
 import nltk
@@ -560,6 +564,57 @@ def api_sparse_vectors_classify():
         return jsonify({"prediction": str(prediction)})
     except Exception as e:
         return jsonify({"error": str(e)}), 400
+    
+@app.route('/api/cosine-similarity', methods=['POST'])
+def cosine_sim():
+    data = request.get_json()
+    sentence_a = data.get('sentence_a', '')
+    sentence_b = data.get('sentence_b', '')
+
+    if not sentence_a or not sentence_b:
+        return jsonify({"error": "Both sentences are required"}), 400
+
+    vectorizer = TfidfVectorizer()
+    vectors = vectorizer.fit_transform([sentence_a, sentence_b])
+    sim = cosine_similarity(vectors[0:1], vectors[1:2])[0][0]
+
+    return jsonify({"similarity": float(sim)})
+
+
+@app.route('/api/pmi', methods=['POST'])
+def pmi():
+    try:
+        data = request.get_json()
+        corpus_text = data.get('corpus', '')
+        if not corpus_text.strip():
+            return jsonify({"error": "Corpus is empty"}), 400
+
+        tokens = [w.lower() for w in re.findall(r'\b\w+\b', corpus_text)]
+        if len(tokens) < 2:
+            return jsonify({"error": "Corpus must have at least 2 words"}), 400
+
+        total_count = len(tokens)
+        word_counts = Counter(tokens)
+
+        co_counts = Counter()
+        for i in range(len(tokens)-1):
+            pair = (tokens[i], tokens[i+1])
+            co_counts[pair] += 1
+
+        pmi_scores = []
+        for pair, co in co_counts.items():
+            p_xy = co / (total_count - 1)
+            p_x = word_counts[pair[0]] / total_count
+            p_y = word_counts[pair[1]] / total_count
+            if p_xy > 0 and p_x > 0 and p_y > 0:
+                score = math.log2(p_xy / (p_x * p_y))
+                pmi_scores.append((pair, score))
+
+        top_pmi = sorted(pmi_scores, key=lambda x: x[1], reverse=True)[:10]
+
+        return jsonify({"pmi_scores": top_pmi})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 @app.route("/api/dense-vectors/search", methods=["POST"])
 def api_dense_vectors_search():

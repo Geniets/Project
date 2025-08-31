@@ -7,8 +7,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
-<head>
-  <!-- ... your other head elements ... -->
+
   <style>
     .page-nav {
       padding: 12px 24px;
@@ -25,15 +24,6 @@
     .page-nav a:hover {
       text-decoration: underline;
     }
-    /* ... rest of your styles ... */
-  </style>
-</head>
-<body>
-  <div class="scene">
-    <header class="page-nav">
-      <a href="{{ url_for('modules') }}">&larr; Back to All Modules</a>
-    </header>
-  <style>
     .lesson-wrap{max-width:1200px;margin:0 auto;padding:8px 16px 96px}
     .modules-hero{max-width:960px;margin:0 auto 18px;text-align:center}
     .modules-title{font-size:clamp(1.8rem,4.8vw,3rem);margin:8px 0 6px}
@@ -66,13 +56,15 @@
 </head>
 <body>
   <div class="scene">
+    <header class="page-nav">
+      <a href="{{ url_for('modules') }}">&larr; Back to All Modules</a>
+    </header>
     <header class="modules-hero">
       <h1 class="modules-title">Module 6: <span>Sparse Vector (Embedding)</span></h1>
       <p class="modules-sub">Explore traditional sparse representations like TF-IDF and Bag of Words for text analysis.</p>
     </header>
 
     <main class="lesson-wrap">
-
       <section class="term" id="intro">
         <h2>What are Sparse Vectors?</h2>
         <p class="t-desc">
@@ -148,18 +140,69 @@ the cat and the dog are friends</textarea>
         </div>
       </section>
       
+      <section class="term" id="cosine-similarity">
+        <h2>Cosine Similarity: Measuring Meaning</h2>
+        <p class="t-desc">
+          Once we have vectors for our documents, how do we measure how similar they are? A common and powerful method is <strong>Cosine Similarity</strong>. Instead of measuring the distance between the vector endpoints, it measures the angle between them. A smaller angle means the documents are more similar in topic.
+        </p>
+        <div class="infobox">
+          <strong>Score Range:</strong> A score of <strong>1</strong> means the documents are identical in content, <strong>0</strong> means they are completely unrelated, and <strong>-1</strong> means they are opposites.
+        </div>
+        <div class="diagram">
+            <div class="d-caption">Cosine Similarity Calculator</div>
+            <div class="twocol">
+                <div>
+                    <label for="sentenceA" class="lbl">Sentence A</label>
+                    <textarea id="sentenceA" class="txt" rows="3">the cat sat on the mat</textarea>
+                </div>
+                <div>
+                    <label for="sentenceB" class="lbl">Sentence B</label>
+                    <textarea id="sentenceB" class="txt" rows="3">the dog sat on the rug</textarea>
+                </div>
+            </div>
+            <div style="margin-top:10px">
+                <button class="btn primary" id="btnCosine" type="button">Calculate Similarity</button>
+            </div>
+        </div>
+        <div id="cosine-results" style="display:none;" class="diagram">
+            <h3>Cosine Similarity Score: <span id="cosine-score"></span></h3>
+        </div>
+      </section>
+
+      <section class="term" id="pmi">
+        <h2>Pointwise Mutual Information (PMI): Finding Word Associations</h2>
+        <p class="t-desc">
+          <strong>Pointwise Mutual Information (PMI)</strong> is a measure of how often two words co-occur versus what we would expect if they were independent. A high PMI score suggests a strong semantic association. It's great for finding meaningful phrases (collocations) in a large body of text.
+        </p>
+        <div class="formula-box">
+            <p class="formula">PMI(word₁, word₂) = log₂( P(word₁, word₂) / (P(word₁) * P(word₂)) )</p>
+        </div>
+        <div class="diagram">
+            <div class="d-caption">PMI Calculator</div>
+            <label for="pmi-corpus" class="lbl">Enter Corpus Text</label>
+            <textarea id="pmi-corpus" class="txt" rows="5">San Francisco is a beautiful city. Many people visit San Francisco every year.</textarea>
+            <div style="margin-top:10px">
+                <button class="btn primary" id="btnPmi" type="button">Calculate Top PMI Scores</button>
+            </div>
+        </div>
+        <div id="pmi-results" style="display:none;" class="diagram">
+            <h3>Top Word Pairs by PMI</h3>
+            <div id="pmi-table"></div>
+        </div>
+      </section>
+
       <section class="term">
         <h2>Quick Quiz</h2>
         <details class="qa"><summary><span class="qnum">1.</span> What does "sparse" in "sparse vector" refer to?</summary><div class="answer">It refers to the fact that the vector is mostly filled with zeros, as a single document only contains a small fraction of the total vocabulary.</div></details>
         <details class="qa"><summary><span class="qnum">2.</span> What information does a Bag-of-Words model discard?</summary><div class="answer">It discards grammar and word order.</div></details>
         <details class="qa"><summary><span class="qnum">3.</span> What is the main problem with the Bag-of-Words model that TF-IDF tries to solve?</summary><div class="answer">BoW treats all words as equally important. TF-IDF gives more weight to words that are more indicative of a document's topic.</div></details>
         <details class="qa"><summary><span class="qnum">4.</span> In TF-IDF, what does a high IDF score for a word mean?</summary><div class="answer">A high IDF score means the word is rare across the collection of documents, and is therefore likely to be more important.</div></details>
-        <details class="qa"><summary><span class="qnum">5.</span> If a word appears in every single document, what will its IDF score be?</summary><div class="answer">Its IDF score will be log(N/N) = log(1) = 0.</div></details>
-        <details class="qa"><summary><span class="qnum">6.</span> What is "Term Frequency"?</summary><div class="answer">It's the frequency of a word in a specific document.</div></details>
+        <details class="qa"><summary><span class="qnum">5.</span> What does a Cosine Similarity score of 1 mean?</summary><div class="answer">It means the two documents are identical in terms of their vector representation.</div></details>
+        <details class="qa"><summary><span class="qnum">6.</span> What is PMI used for?</summary><div class="answer">To measure the association between two words and find meaningful phrases (collocations).</div></details>
         <details class="qa"><summary><span class="qnum">7.</span> What is one common application of TF-IDF?</summary><div class="answer">Information retrieval and search engines, to rank documents based on their relevance to a query.</div></details>
         <details class="qa"><summary><span class="qnum">8.</span> What is a "vocabulary" in the context of these models?</summary><div class="answer">The set of all unique words across all documents in the corpus.</div></details>
         <details class="qa"><summary><span class="qnum">9.</span> Why do we often remove common "stopwords" before creating BoW or TF-IDF vectors?</summary><div class="answer">Because they don't carry much meaningful information about the topic of the document and can dilute the importance of more significant words.</div></details>
-        <details class="qa"><summary><span class="qnum">10.</span> Between "car" and "the", which word would you expect to have a higher IDF score in a large corpus of general English text?</summary><div class="answer">"car", because it is much less common than "the".</div></details>
+        <details class="qa"><summary><span class="qnum">10.</span> Between "San" and "Francisco" in a large English corpus, would you expect a high or low PMI score?</summary><div class="answer">A high PMI score, because they co-occur much more frequently than would be expected by chance.</div></details>
       </section>
 
     </main>
@@ -224,6 +267,44 @@ the cat and the dog are friends</textarea>
             document.getElementById('tfidf-results').innerHTML = tfidfHtml;
 
             document.getElementById('results').style.display = 'block';
+        } catch (e) {
+            alert(`Error: ${e.message}`);
+        }
+    });
+
+    // --- NEW: Cosine Similarity Lab Script ---
+    document.getElementById('btnCosine').addEventListener('click', async () => {
+        const sentenceA = document.getElementById('sentenceA').value;
+        const sentenceB = document.getElementById('sentenceB').value;
+        if (!sentenceA || !sentenceB) {
+            alert('Please enter both sentences.');
+            return;
+        }
+        try {
+            const data = await postJSON('/api/cosine-similarity', { sentence_a: sentenceA, sentence_b: sentenceB });
+            document.getElementById('cosine-score').textContent = data.similarity.toFixed(4);
+            document.getElementById('cosine-results').style.display = 'block';
+        } catch (e) {
+            alert(`Error: ${e.message}`);
+        }
+    });
+
+    // --- NEW: PMI Lab Script ---
+    document.getElementById('btnPmi').addEventListener('click', async () => {
+        const corpus = document.getElementById('pmi-corpus').value;
+        if (!corpus) {
+            alert('Please enter a corpus.');
+            return;
+        }
+        try {
+            const data = await postJSON('/api/pmi', { corpus });
+            let tableHtml = '<table class="table"><thead><tr><th>Word Pair</th><th>PMI Score</th></tr></thead><tbody>';
+            data.pmi_scores.forEach(item => {
+                tableHtml += `<tr><td>'${item[0][0]}', '${item[0][1]}'</td><td>${item[1].toFixed(4)}</td></tr>`;
+            });
+            tableHtml += '</tbody></table>';
+            document.getElementById('pmi-table').innerHTML = tableHtml;
+            document.getElementById('pmi-results').style.display = 'block';
         } catch (e) {
             alert(`Error: ${e.message}`);
         }
